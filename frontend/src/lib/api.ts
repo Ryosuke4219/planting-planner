@@ -39,6 +39,21 @@ export const fetchCrops = async (): Promise<Crop[]> => {
   return request<Crop[]>(url)
 }
 
+export const fetchRecommend = async ({
+  region,
+  week,
+}: {
+  region: Region
+  week?: string
+}): Promise<RecommendResponse> => {
+  const params = new URLSearchParams({ region })
+  if (week) {
+    params.set('week', week)
+  }
+  const url = buildUrl('/recommend', params)
+  return request<RecommendResponse>(url)
+}
+
 export const fetchRecommendations = async (
   region: Region,
   week?: string,
