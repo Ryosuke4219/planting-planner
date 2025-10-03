@@ -32,7 +32,7 @@ export const useFavorites = () => {
   const [favorites, setFavorites] = useState<number[]>(() => loadFavorites())
 
   const toggleFavorite = useCallback((cropId?: number) => {
-    if (!cropId) {
+    if (cropId === null || cropId === undefined) {
       return
     }
     setFavorites((prev) => {
