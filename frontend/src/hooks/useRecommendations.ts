@@ -1,26 +1,24 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import * as apiModule from '../lib/api'
-import * as weekModule from '../lib/week'
-import type { Crop, RecommendResponse, RecommendationItem, Region } from '../types'
+import { fetchCrops } from '../lib/api'
+import type { Crop, Region } from '../types'
 import {
-  DEFAULT_ACTIVE_WEEK,
-  DEFAULT_WEEK,
   RecommendationRow,
-  NormalizeRecommendationResult,
   buildRecommendationRows,
   formatWeekLabel,
-  normalizeRecommendationResponse,
 } from '../utils/recommendations'
+import {
+  useRecommendationFetcher as baseUseRecommendationFetcher,
+  useRecommendationLoader as baseUseRecommendationLoader,
+} from './recommendationLoader'
 
-const week = weekModule as typeof import('../lib/week')
-
-const api = apiModule as typeof import('../lib/api') & {
-  fetchRecommend?: (input: { region: Region; week?: string }) => Promise<RecommendResponse>
-}
-
-const { normalizeIsoWeek } = week
-const fetchCrops = api.fetchCrops
+export const useRecommendationFetcher = baseUseRecommendationFetcher
+export const useRecommendationLoader = baseUseRecommendationLoader
+export type {
+  RecommendationFetchInput,
+  RecommendationFetcher,
+  UseRecommendationLoaderResult,
+} from './recommendationLoader'
 
 export interface UseRecommendationsOptions {
   favorites: readonly number[]
@@ -36,55 +34,6 @@ export interface UseRecommendationsResult {
   displayWeek: string
   sortedRows: RecommendationRow[]
   handleSubmit: (event: FormEvent<HTMLFormElement>) => void
-}
-
-interface RecommendationFetchInput {
-  region: Region
-  week: string
-  preferLegacy?: boolean
-}
-
-export type RecommendationFetcher = (
-  input: RecommendationFetchInput,
-) => Promise<NormalizeRecommendationResult | null>
-
-export const useRecommendationFetcher = (): RecommendationFetcher => {
-  return useCallback<RecommendationFetcher>(
-    async ({ region, week, preferLegacy = false }) => {
-      const callModern = async (): Promise<RecommendResponse | undefined> => {
-        if (typeof api.fetchRecommendations !== 'function') {
-          return undefined
-        }
-        try {
-          return await api.fetchRecommendations(region, week)
-        } catch {
-          return undefined
-        }
-      }
-
-      const callLegacy = async (): Promise<RecommendResponse | undefined> => {
-        if (typeof api.fetchRecommend !== 'function') {
-          return undefined
-        }
-        try {
-          return await api.fetchRecommend({ region, week })
-        } catch {
-          return undefined
-        }
-      }
-
-      const primary = preferLegacy ? callLegacy : callModern
-      const secondary = preferLegacy ? callModern : callLegacy
-
-      const response = (await primary()) ?? (await secondary())
-      if (!response) {
-        return null
-      }
-
-      return normalizeRecommendationResponse(response, week)
-    },
-    [],
-  )
 }
 
 const useCropIndex = (): Map<string, number> => {
@@ -225,8 +174,14 @@ export const useRecommendations = ({ favorites, initialRegion }: UseRecommendati
   const regionSyncRef = useRef<Region>(initialRegionRef.current)
   const regionFetchSkipRef = useRef<Region | null>(null)
   const cropIndex = useCropIndex()
-  const { queryWeek, setQueryWeek: setRawQueryWeek, activeWeek, items, currentWeek, requestRecommendations } =
-    useRecommendationLoader(region)
+  const {
+    queryWeek,
+    setQueryWeek: setRawQueryWeek,
+    activeWeek,
+    items,
+    currentWeek,
+    requestRecommendations,
+  } = baseUseRecommendationLoader(region)
 
   const setQueryWeek = useCallback(
     (nextWeek: string) => {
