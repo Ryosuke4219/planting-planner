@@ -47,6 +47,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({ cropId, range }) => {
         const points = res.prices ?? []
         setLabels(points.map((p) => p.week))
         setValues(points.map((p) => (p.avg_price ?? NaN)))
+        setLoadedCropId(cropId)
+        setIsLoading(false)
       } catch {
         if (active) {
           setLabels([])
