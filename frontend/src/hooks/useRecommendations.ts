@@ -144,7 +144,7 @@ export const useRecommendationLoader = (region: Region): UseRecommendationLoader
       const trimmed = value.trim()
       if (trimmed) {
         const digits = trimmed.replace(/[^0-9]/g, '')
-        if (digits.length === 6) {
+        if (digits.length === 6 || digits.length === 5) {
           const year = digits.slice(0, 4)
           const weekPart = digits.slice(4).padStart(2, '0')
           return `${year}-W${weekPart}`
