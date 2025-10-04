@@ -184,6 +184,8 @@ export const useRecommendationLoader = (region: Region): UseRecommendationLoader
         }
         if (!result) {
           setItems([])
+          setActiveWeek(normalizedWeek)
+          currentWeekRef.current = normalizedWeek
           return
         }
         const resolvedWeek = normalizeWeek(result.week)
@@ -196,6 +198,8 @@ export const useRecommendationLoader = (region: Region): UseRecommendationLoader
           return
         }
         setItems([])
+        setActiveWeek(normalizedWeek)
+        currentWeekRef.current = normalizedWeek
       }
     },
     [fetchRecommendationsWithFallback, normalizeWeek, region],
