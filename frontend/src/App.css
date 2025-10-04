@@ -47,6 +47,35 @@ body {
   min-width: 260px;
 }
 
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  position: relative;
+}
+
+.search-box__input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #c5d6c3;
+  background-color: #fff;
+}
+
+.search-box__clear {
+  border: none;
+  background: none;
+  color: #2e7d32;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+.search-box__clear:hover {
+  text-decoration: underline;
+}
+
 .app__controls-actions {
   display: flex;
   gap: 0.5rem;
@@ -198,6 +227,68 @@ body {
 
 .recommend__error {
   color: #c62828;
+}
+
+.toast-stack {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 1000;
+}
+
+.toast {
+  min-width: 240px;
+  max-width: 320px;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  color: #fff;
+}
+
+.toast__message {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.toast__close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.toast--success {
+  background: linear-gradient(135deg, #66bb6a, #43a047);
+}
+
+.toast--error {
+  background: linear-gradient(135deg, #ef5350, #c62828);
+}
+
+.toast--warning {
+  background: linear-gradient(135deg, #ffb74d, #f57c00);
+  color: #4a3410;
+}
+
+@media (max-width: 600px) {
+  .toast-stack {
+    position: static;
+    width: 100%;
+    max-width: none;
+  }
+
+  .toast {
+    max-width: none;
+    width: 100%;
+  }
 }
 
 .fav-star {

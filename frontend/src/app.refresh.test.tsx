@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { REFRESH_BUTTON_TEXT, REFRESH_MESSAGES } from './constants/messages'
 
 import {
   fetchCrops,
@@ -22,7 +24,77 @@ describe('App refresh', () => {
     cleanup()
   })
 
-  it('更新ボタンでメッセージが表示され alert を使わない', async () => {
+  it('更新完了までポーリングし成功トーストを表示する', async () => {
+    fetchCrops.mockResolvedValue([
+      { id: 1, name: '春菊', category: 'leaf' },
+      { id: 2, name: 'にんじん', category: 'root' },
+    ])
+    fetchRecommendations.mockResolvedValue({
+      week: '2024-W30',
+      region: 'temperate',
+      items: [
+        {
+          crop: '春菊',
+          harvest_week: '2024-W35',
+          sowing_week: '2024-W30',
+          source: 'local-db',
+          growth_days: 35,
+        },
+      ],
+    })
+
+    const { user } = await renderApp()
+    const refreshButton = screen.getByRole('button', { name: REFRESH_BUTTON_TEXT.idle })
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+
+    try {
+      let resolvePostRefresh: ((response: { state: 'running' }) => void) | undefined
+      postRefresh.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolvePostRefresh = resolve
+          }),
+      )
+      fetchRefreshStatus.mockResolvedValueOnce({
+        state: 'running',
+        started_at: '2024-01-01T00:00:00Z',
+        finished_at: null,
+        updated_records: 0,
+        last_error: null,
+      })
+      fetchRefreshStatus.mockResolvedValueOnce({
+        state: 'success',
+        started_at: '2024-01-01T00:00:00Z',
+        finished_at: '2024-01-01T00:05:00Z',
+        updated_records: 3,
+        last_error: null,
+      })
+
+      await user.click(refreshButton)
+      await waitFor(() => {
+        expect(refreshButton).toBeDisabled()
+      })
+      expect(refreshButton).toHaveTextContent(REFRESH_BUTTON_TEXT.loading)
+
+      resolvePostRefresh?.({ state: 'running' })
+
+      await Promise.resolve()
+      await Promise.resolve()
+
+      await waitFor(() => {
+        expect(fetchRefreshStatus).toHaveBeenCalled()
+      })
+
+      expect(await screen.findByText(REFRESH_MESSAGES.success(3))).toBeInTheDocument()
+
+      expect(refreshButton).not.toBeDisabled()
+      expect(alertSpy).not.toHaveBeenCalled()
+    } finally {
+      alertSpy.mockRestore()
+    }
+  })
+
+  it('リフレッシュに失敗した場合はエラートーストを表示する', async () => {
     fetchCrops.mockResolvedValue([
       { id: 1, name: '春菊', category: 'leaf' },
       { id: 2, name: 'にんじん', category: 'root' },
@@ -43,73 +115,15 @@ describe('App refresh', () => {
 
     const { user } = await renderApp()
 
-    const refreshButton = screen.getByRole('button', { name: '更新' })
-    const main = screen.getByRole('main')
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const refreshButton = screen.getByRole('button', { name: REFRESH_BUTTON_TEXT.idle })
 
-    fetchRefreshStatus.mockResolvedValue({
-      state: 'success',
-      started_at: null,
-      finished_at: null,
-      updated_records: 1,
-      last_error: null,
-    })
-    let resolveRefresh: (() => void) | undefined
-    let rejectRefresh: (() => void) | undefined
-    postRefresh.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveRefresh = () =>
-            resolve({
-              state: 'success',
-            })
-        }),
-    )
-    postRefresh.mockImplementationOnce(
-      () =>
-        new Promise((_, reject) => {
-          rejectRefresh = () => reject(new Error('network'))
-        }),
-    )
+    postRefresh.mockRejectedValue(new Error('network'))
 
-    try {
-      await user.click(refreshButton)
-      expect(refreshButton).toBeDisabled()
+    await user.click(refreshButton)
 
-      resolveRefresh?.()
+    expect(await screen.findByText(REFRESH_MESSAGES.failure)).toBeInTheDocument()
 
-      await expect(
-        waitFor(() => {
-          expect(
-            within(main).getByText('更新リクエストを受け付けました。自動ステータス更新は未実装です。'),
-          ).toBeInTheDocument()
-        }),
-      ).resolves.toBeUndefined()
-
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1600)
-      })
-
-      expect(fetchRefreshStatus).not.toHaveBeenCalled()
-      expect(alertSpy).not.toHaveBeenCalled()
-      await waitFor(() => expect(refreshButton).not.toBeDisabled())
-
-      await user.click(refreshButton)
-      expect(refreshButton).toBeDisabled()
-
-      rejectRefresh?.()
-
-      await expect(
-        waitFor(() => {
-          expect(
-            within(main).getByText('更新リクエストに失敗しました。自動ステータス更新は未実装です。'),
-          ).toBeInTheDocument()
-        }),
-      ).resolves.toBeUndefined()
-      expect(alertSpy).not.toHaveBeenCalled()
-      await waitFor(() => expect(refreshButton).not.toBeDisabled())
-    } finally {
-      alertSpy.mockRestore()
-    }
+    expect(refreshButton).not.toBeDisabled()
+    expect(fetchRefreshStatus).not.toHaveBeenCalled()
   })
 })

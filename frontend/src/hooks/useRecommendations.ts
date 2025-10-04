@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 
 import * as weekModule from '../lib/week'
 import type { RecommendationItem, Region } from '../types'
+import type { CropCatalogMap } from './useCropCatalog'
 import {
   DEFAULT_ACTIVE_WEEK,
   DEFAULT_WEEK,
@@ -29,6 +30,7 @@ export interface UseRecommendationsResult {
   currentWeek: string
   displayWeek: string
   sortedRows: RecommendationRow[]
+  cropCatalog: CropCatalogMap
   handleSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
 
@@ -260,6 +262,7 @@ export const useRecommendations = ({ favorites, initialRegion }: UseRecommendati
     currentWeek,
     displayWeek,
     sortedRows,
+    cropCatalog,
     handleSubmit,
   }
 }

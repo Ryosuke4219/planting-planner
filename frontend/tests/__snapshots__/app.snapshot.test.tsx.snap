@@ -66,6 +66,17 @@ exports[`App snapshot > 初期表示をスナップショット保存する 1`] 
             />
           </label>
           <div
+            class="search-box"
+          >
+            <input
+              aria-label="作物検索"
+              class="search-box__input"
+              placeholder="作物名・カテゴリで検索"
+              type="search"
+              value=""
+            />
+          </div>
+          <div
             class="app__controls-actions"
           >
             <button

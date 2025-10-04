@@ -1,28 +1,38 @@
 
-import { ChangeEvent, useCallback, useRef, useState } from 'react'
+import { ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
 
 import { PriceChartSection } from './components/PriceChartSection'
 import { RecommendationsTable } from './components/RecommendationsTable'
 import { SearchControls } from './components/SearchControls'
 import { useFavorites } from './components/FavStar'
-import { postRefresh } from './lib/api'
+import { ToastStack } from './components/ToastStack'
 import { loadRegion } from './lib/storage'
+import { useRefreshStatus } from './hooks/useRefreshStatus'
 import { useRecommendations } from './hooks/useRecommendations'
-import type { Region } from './types'
+import type { Region, SearchFilter } from './types'
+import { matchesSearchFilter } from './utils/search'
 
 import './App.css'
 
 export const App = () => {
   const [selectedCropId, setSelectedCropId] = useState<number | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
-  const [refreshFailed, setRefreshFailed] = useState(false)
+  const [searchFilter, setSearchFilter] = useState<SearchFilter>({ keyword: '' })
   const { favorites, toggleFavorite, isFavorite } = useFavorites()
+  const { refreshing, startRefresh, toasts, dismissToast } = useRefreshStatus()
 
   const initialRegionRef = useRef<Region>(loadRegion())
 
-  const { region, setRegion, queryWeek, setQueryWeek, currentWeek, displayWeek, sortedRows, handleSubmit } =
-    useRecommendations({ favorites, initialRegion: initialRegionRef.current })
+  const {
+    region,
+    setRegion,
+    queryWeek,
+    setQueryWeek,
+    currentWeek,
+    displayWeek,
+    sortedRows,
+    cropCatalog,
+    handleSubmit,
+  } = useRecommendations({ favorites, initialRegion: initialRegionRef.current })
 
   const handleWeekChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -38,20 +48,26 @@ export const App = () => {
     [setRegion],
   )
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true)
-    setRefreshFailed(false)
-    try {
-      await postRefresh()
-      setRefreshMessage('更新リクエストを受け付けました。自動ステータス更新は未実装です。')
-      setRefreshFailed(false)
-    } catch {
-      setRefreshMessage('更新リクエストに失敗しました。自動ステータス更新は未実装です。')
-      setRefreshFailed(true)
-    } finally {
-      setRefreshing(false)
-    }
+  const handleSearchChange = useCallback((keyword: string) => {
+    setSearchFilter({ keyword })
   }, [])
+
+  const handleSearchClear = useCallback(() => {
+    setSearchFilter({ keyword: '' })
+  }, [])
+
+  const filteredRows = useMemo(() => {
+    if (!searchFilter.keyword.trim()) {
+      return sortedRows
+    }
+    return sortedRows.filter((row) => {
+      const category = cropCatalog.get(row.crop)?.category ?? null
+      return matchesSearchFilter(searchFilter, {
+        name: row.crop,
+        category,
+      })
+    })
+  }, [cropCatalog, searchFilter, sortedRows])
 
   return (
     <div className="app">
@@ -63,23 +79,19 @@ export const App = () => {
           onWeekChange={handleWeekChange}
           onRegionChange={handleRegionChange}
           onSubmit={handleSubmit}
-          onRefresh={handleRefresh}
+          onRefresh={startRefresh}
           refreshing={refreshing}
+          searchKeyword={searchFilter.keyword}
+          onSearchChange={handleSearchChange}
+          onSearchClear={handleSearchClear}
         />
       </header>
       <main className="app__main">
-        {refreshMessage && (
-          <div
-            className={`app__refresh-message${refreshFailed ? ' app__refresh-message--error' : ''}`}
-            role={refreshFailed ? 'alert' : 'status'}
-          >
-            {refreshMessage}
-          </div>
-        )}
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <RecommendationsTable
           region={region}
           displayWeek={displayWeek}
-          rows={sortedRows}
+          rows={filteredRows}
           selectedCropId={selectedCropId}
           onSelect={setSelectedCropId}
           onToggleFavorite={toggleFavorite}

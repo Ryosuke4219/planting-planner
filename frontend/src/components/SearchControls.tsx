@@ -1,6 +1,8 @@
 import type { ChangeEvent, FormEvent } from 'react'
 
+import { SearchBox } from './SearchBox'
 import { RegionSelect } from './RegionSelect'
+import { REFRESH_BUTTON_TEXT } from '../constants/messages'
 import type { Region } from '../types'
 
 interface SearchControlsProps {
@@ -11,6 +13,9 @@ interface SearchControlsProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onRefresh: () => void | Promise<void>
   refreshing: boolean
+  searchKeyword: string
+  onSearchChange: (keyword: string) => void
+  onSearchClear: () => void
 }
 
 export const SearchControls = ({
@@ -21,6 +26,9 @@ export const SearchControls = ({
   onSubmit,
   onRefresh,
   refreshing,
+  searchKeyword,
+  onSearchChange,
+  onSearchClear,
 }: SearchControlsProps) => {
   return (
     <form className="app__controls" onSubmit={onSubmit} noValidate>
@@ -39,6 +47,7 @@ export const SearchControls = ({
             inputMode="numeric"
           />
         </label>
+        <SearchBox value={searchKeyword} onChange={onSearchChange} onClear={onSearchClear} />
         <div className="app__controls-actions">
           <button type="submit">この条件で見る</button>
           <button
@@ -49,7 +58,7 @@ export const SearchControls = ({
             }}
             disabled={refreshing}
           >
-            {refreshing ? '更新中...' : '更新'}
+            {refreshing ? REFRESH_BUTTON_TEXT.loading : REFRESH_BUTTON_TEXT.idle}
           </button>
         </div>
       </div>
