@@ -10,6 +10,7 @@ import {
   fetchRefreshStatus,
 } from './utils/renderApp'
 import App from '../src/App'
+import { TOAST_MESSAGES } from '../src/constants/messages'
 
 describe.skip('App refresh workflow', () => {
   afterEach(() => {
@@ -84,7 +85,7 @@ describe.skip('App refresh workflow', () => {
       expect(fetchRefreshStatus).toHaveBeenCalledTimes(2)
     })
 
-    const successToast = await screen.findByText('更新が完了しました。7件のデータを更新しました。')
+    const successToast = await screen.findByText(TOAST_MESSAGES.refreshSuccess(7))
     expect(successToast).toBeInTheDocument()
 
     await waitFor(() => {

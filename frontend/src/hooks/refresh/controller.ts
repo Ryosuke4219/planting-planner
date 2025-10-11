@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRefreshStatus, postRefresh } from '../../lib/api'
+import { TOAST_MESSAGES } from '../../constants/messages'
 import type { RefreshState, RefreshStatusResponse } from '../../types'
 
 import { createRefreshStatusPoller, isTerminalState } from './poller'
@@ -15,8 +16,6 @@ export interface RefreshToast {
 }
 
 const TOAST_AUTO_DISMISS_MS = 5000
-const STALE_TOAST_MESSAGE = 'データ更新の結果を取得できませんでした'
-const FETCH_STATUS_ERROR_MESSAGE = '更新状況の取得に失敗しました'
 
 export interface UseRefreshStatusOptions {
   readonly pollIntervalMs?: number
@@ -48,29 +47,33 @@ const toastFromStatus = (status: RefreshStatusResponse): ToastPayload => {
   if (status.state === 'success') {
     return {
       variant: 'success',
-      message: 'データ更新が完了しました',
-      detail: `${status.updated_records}件のデータを更新しました。`,
+      message: TOAST_MESSAGES.refreshSuccess(status.updated_records),
+      detail: null,
     }
   }
   if (status.state === 'failure') {
+    const failureDetail = status.last_error ?? TOAST_MESSAGES.refreshStatusUnknownDetail
     return {
       variant: 'error',
-      message: 'データ更新に失敗しました',
-      detail: status.last_error,
+      message: TOAST_MESSAGES.refreshFailure(failureDetail),
+      detail: status.last_error ?? null,
     }
   }
   return {
     variant: 'warning',
-    message: STALE_TOAST_MESSAGE,
-    detail: '更新状況を確認できませんでした。時間をおいて再試行してください。',
+    message: TOAST_MESSAGES.refreshUnknown,
+    detail: TOAST_MESSAGES.refreshStatusUnknownDetail,
   }
 }
 
-const createFetchErrorToast = (error: unknown): ToastPayload => ({
-  variant: 'error',
-  message: FETCH_STATUS_ERROR_MESSAGE,
-  detail: error instanceof Error ? error.message : String(error),
-})
+const createFetchErrorToast = (error: unknown): ToastPayload => {
+  const detail = error instanceof Error ? error.message : String(error)
+  return {
+    variant: 'error',
+    message: TOAST_MESSAGES.refreshStatusFetchFailure(detail),
+    detail,
+  }
+}
 
 export const useRefreshStatusController = (
   options?: UseRefreshStatusOptions,
