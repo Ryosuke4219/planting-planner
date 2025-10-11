@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRefreshStatus, postRefresh } from '../../lib/api'
+import { TOAST_MESSAGES } from '../../constants/messages'
 import type { RefreshState, RefreshStatusResponse } from '../../types'
 
 import { createRefreshStatusPoller, isTerminalState } from './poller'
@@ -15,8 +16,7 @@ export interface RefreshToast {
 }
 
 const TOAST_AUTO_DISMISS_MS = 5000
-const STALE_TOAST_MESSAGE = 'データ更新の結果を取得できませんでした'
-const FETCH_STATUS_ERROR_MESSAGE = '更新状況の取得に失敗しました'
+const REFRESH_TIMEOUT_DETAIL = 'タイムアウトしました。'
 
 export interface UseRefreshStatusOptions {
   readonly pollIntervalMs?: number
@@ -48,29 +48,33 @@ const toastFromStatus = (status: RefreshStatusResponse): ToastPayload => {
   if (status.state === 'success') {
     return {
       variant: 'success',
-      message: 'データ更新が完了しました',
+      message: TOAST_MESSAGES.refreshSuccess(status.updated_records),
       detail: `更新件数: ${status.updated_records}`,
     }
   }
   if (status.state === 'failure') {
+    const detail = status.last_error ?? TOAST_MESSAGES.refreshStatusUnknownDetail
     return {
       variant: 'error',
-      message: 'データ更新に失敗しました',
-      detail: status.last_error,
+      message: TOAST_MESSAGES.refreshFailure(detail),
+      detail,
     }
   }
   return {
     variant: 'warning',
-    message: 'データ更新の結果を取得できませんでした',
-    detail: '更新状況を確認できませんでした。時間をおいて再試行してください。',
+    message: TOAST_MESSAGES.refreshUnknown,
+    detail: TOAST_MESSAGES.refreshStatusUnknownDetail,
   }
 }
 
-const createFetchErrorToast = (error: unknown): ToastPayload => ({
-  variant: 'error',
-  message: '更新状況の取得に失敗しました',
-  detail: error instanceof Error ? error.message : String(error),
-})
+const createFetchErrorToast = (error: unknown): ToastPayload => {
+  const detail = error instanceof Error ? error.message : String(error)
+  return {
+    variant: 'error',
+    message: TOAST_MESSAGES.refreshStatusFetchFailure(detail),
+    detail,
+  }
+}
 
 export const useRefreshStatusController = (
   options?: UseRefreshStatusOptions,
@@ -101,7 +105,7 @@ export const useRefreshStatusController = (
     const timer = setTimeout(() => {
       setPendingToasts((prev) => prev.filter((entry) => entry.id !== id))
       toastTimers.current.delete(id)
-    }, 5000)
+    }, TOAST_AUTO_DISMISS_MS)
     toastTimers.current.set(id, timer)
   }, [])
 
@@ -179,7 +183,11 @@ export const useRefreshStatusController = (
     })
 
     timeoutTimer.current = setTimeout(() => {
-      finish({ variant: 'warning', message: '更新状況の取得がタイムアウトしました', detail: null })
+      finish({
+        variant: 'warning',
+        message: TOAST_MESSAGES.refreshStatusFetchFailure(REFRESH_TIMEOUT_DETAIL),
+        detail: REFRESH_TIMEOUT_DETAIL,
+      })
     }, settings.timeoutMs)
 
     try {
@@ -191,10 +199,11 @@ export const useRefreshStatusController = (
         void pollerRef.current?.run()
       }
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
       finish({
         variant: 'error',
-        message: '更新リクエストに失敗しました',
-        detail: error instanceof Error ? error.message : String(error),
+        message: TOAST_MESSAGES.refreshRequestFailureWithDetail(detail),
+        detail,
       })
     }
 
