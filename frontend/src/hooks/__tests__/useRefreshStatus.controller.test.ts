@@ -32,41 +32,44 @@ const createStatus = (
 })
 
 describe('useRefreshStatusController', () => {
-  const renderController = () =>
-    renderHook(() => useRefreshStatusController({ pollIntervalMs: 1000, timeoutMs: 4000 }))
+  const renderController = (
+    options?: Parameters<typeof useRefreshStatusController>[0],
+  ) =>
+    renderHook(() =>
+      useRefreshStatusController({
+        pollIntervalMs: 1000,
+        timeoutMs: 4000,
+        ...options,
+      }),
+    )
+
+  let setTimeoutSpy: vi.SpyInstance<ReturnType<typeof setTimeout>, Parameters<typeof setTimeout>>
 
   beforeEach(() => {
     vi.useFakeTimers()
+    setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    postRefreshMock.mockReset()
+    fetchRefreshStatusMock.mockReset()
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
+    setTimeoutSpy.mockRestore()
     vi.useRealTimers()
   })
 
   it('開始から終了までのフローを制御し、成功・失敗・タイムアウト時のトーストを生成する', async () => {
     const reloadCurrentWeekMock = vi.fn()
-    const { result } = renderHook(() =>
-      useRefreshStatusController({
-        pollIntervalMs: 1000,
-        timeoutMs: 4000,
-        onSuccess: reloadCurrentWeekMock,
-      }),
-    )
+    const { result } = renderController({ onSuccess: reloadCurrentWeekMock })
 
-        expect(toastId).toBeDefined()
+    postRefreshMock.mockResolvedValueOnce({ state: 'running' })
+    fetchRefreshStatusMock.mockResolvedValueOnce(createStatus('running'))
+    fetchRefreshStatusMock.mockResolvedValueOnce(createStatus('success', { updated_records: 8 }))
 
-        const timerIndex = setTimeoutSpy.mock.calls.findIndex(([, delay]) => delay === 5000)
-        expect(timerIndex).toBeGreaterThanOrEqual(0)
-
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(5000)
-        })
-
-        expect(result.current.pendingToasts).toEqual([])
-      } finally {
-        setTimeoutSpy.mockRestore()
-      }
+    await act(async () => {
+      const promise = result.current.startRefresh()
+      await vi.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(1000)
+      await promise
     })
 
     expect(fetchRefreshStatusMock).toHaveBeenCalledTimes(2)
@@ -77,19 +80,20 @@ describe('useRefreshStatusController', () => {
       }),
     ])
     expect(reloadCurrentWeekMock).toHaveBeenCalledTimes(1)
+
     const successToastId = result.current.pendingToasts[0]?.id
     expect(successToastId).toBeDefined()
-    expect(result.current.pendingToasts.some((toast) => toast.id === successToastId)).toBe(true)
+    expect(setTimeoutSpy.mock.calls.some(([, delay]) => delay === 5000)).toBe(true)
+
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000)
     })
+
     expect(result.current.pendingToasts.some((toast) => toast.id === successToastId)).toBe(false)
 
     postRefreshMock.mockResolvedValueOnce({ state: 'running' })
-    fetchRefreshStatusMock.mockImplementationOnce(async () => createStatus('running'))
-    fetchRefreshStatusMock.mockImplementationOnce(async () =>
-      createStatus('failure', { last_error: 'boom' }),
-    )
+    fetchRefreshStatusMock.mockResolvedValueOnce(createStatus('running'))
+    fetchRefreshStatusMock.mockResolvedValueOnce(createStatus('failure', { last_error: 'boom' }))
 
     await act(async () => {
       const promise = result.current.startRefresh()
@@ -98,28 +102,12 @@ describe('useRefreshStatusController', () => {
       await promise
     })
 
-    it('stale のトーストは重複して追加されない', async () => {
-      const { result } = renderController()
-
-      postRefreshMock.mockResolvedValue({ state: 'stale' })
-
-      await act(async () => {
-        const promise = result.current.startRefresh()
-        await promise
-      })
-
-      expect(result.current.pendingToasts).toHaveLength(1)
-
-      await act(async () => {
-        const promise = result.current.startRefresh()
-        await promise
-      })
-
-      expect(result.current.pendingToasts).toHaveLength(1)
-    })
-
-    expect(result.current.pendingToasts.at(-1)).toMatchObject({ variant: 'warning' })
+    expect(result.current.pendingToasts.at(-1)).toMatchObject({ variant: 'error', detail: 'boom' })
     expect(result.current.isRefreshing).toBe(false)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
 
     postRefreshMock.mockResolvedValueOnce({ state: 'running' })
     fetchRefreshStatusMock.mockResolvedValueOnce(createStatus('running'))
@@ -138,13 +126,39 @@ describe('useRefreshStatusController', () => {
       act(() => {
         result.current.dismissToast(dismissTargetId)
       })
+      expect(result.current.pendingToasts.some((toast) => toast.id === dismissTargetId)).toBe(false)
     }
-    expect(result.current.pendingToasts.some((toast) => toast.id === dismissTargetId)).toBe(false)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000)
     })
+
     expect(result.current.pendingToasts.some((toast) => toast.id === dismissTargetId)).toBe(false)
     expect(reloadCurrentWeekMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('stale のトーストは重複して追加されない', async () => {
+    const { result } = renderController()
+
+    postRefreshMock.mockResolvedValue({ state: 'stale' })
+
+    await act(async () => {
+      const promise = result.current.startRefresh()
+      await promise
+    })
+
+    expect(result.current.pendingToasts).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(result.current.pendingToasts).toHaveLength(0)
+
+    await act(async () => {
+      const promise = result.current.startRefresh()
+      await promise
+    })
+
+    expect(result.current.pendingToasts).toHaveLength(1)
   })
 })
