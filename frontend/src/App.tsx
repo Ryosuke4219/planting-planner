@@ -32,7 +32,7 @@ export const App = () => {
     handleSubmit,
     reloadCurrentWeek,
   } = useRecommendations({ favorites, initialRegion: initialRegionRef.current })
-  const { isRefreshing, startRefresh, pendingToasts, dismissToast } = useRefreshStatusController({ pollIntervalMs: 1000 })
+  const { isRefreshing, startRefresh, pendingToasts, dismissToast } = useRefreshStatusController()
   const lastSuccessToastIdRef = useRef<string | null>(null)
 
   const handleWeekChange = useCallback(

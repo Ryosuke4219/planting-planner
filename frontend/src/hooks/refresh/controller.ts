@@ -71,7 +71,7 @@ export const useRefreshStatusController = (
   options?: UseRefreshStatusOptions,
 ): UseRefreshStatusResult => {
   const settings = useMemo(
-    () => ({ pollIntervalMs: options?.pollIntervalMs ?? 2000, timeoutMs: options?.timeoutMs ?? 120000 }),
+    () => ({ pollIntervalMs: options?.pollIntervalMs ?? 5000, timeoutMs: options?.timeoutMs ?? 120000 }),
     [options?.pollIntervalMs, options?.timeoutMs],
   )
   const [isRefreshing, setIsRefreshing] = useState(false)

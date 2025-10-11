@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RefreshStatusResponse } from '../../types'
 
 import { useRefreshStatusController } from '../refresh/controller'
+import * as pollerModule from '../refresh/poller'
+import type { RefreshStatusPollerOptions } from '../refresh/poller'
 
 type PostRefreshImmediate =
   Pick<RefreshStatusResponse, 'state'> &
@@ -46,6 +48,42 @@ describe('useRefreshStatusController', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('既定オプションでポーラーが 5000ms 間隔になる', async () => {
+    let capturedOptions: RefreshStatusPollerOptions | null = null
+
+    const pollerSpy = vi
+      .spyOn(pollerModule, 'createRefreshStatusPoller')
+      .mockImplementation((options) => {
+        capturedOptions = options
+        return {
+          run: vi.fn(async () => {
+            options.onTerminal(
+              createStatus('success', {
+                updated_records: 0,
+              }),
+            )
+          }),
+          stop: vi.fn(),
+        }
+      })
+
+    try {
+      postRefreshMock.mockResolvedValueOnce({ state: 'running' })
+
+      const { result } = renderHook(() => useRefreshStatusController())
+
+      await act(async () => {
+        await result.current.startRefresh()
+      })
+
+      expect(pollerSpy).toHaveBeenCalledTimes(1)
+      expect(capturedOptions).not.toBeNull()
+      expect(capturedOptions!.pollIntervalMs).toBe(5000)
+    } finally {
+      pollerSpy.mockRestore()
+    }
   })
 
   it('成功時にトーストを表示し onSuccess を呼び出す', async () => {
