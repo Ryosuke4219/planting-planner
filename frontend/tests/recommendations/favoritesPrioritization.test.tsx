@@ -6,6 +6,7 @@ import {
   fetchCrops,
   fetchRecommendations,
   fetchRefreshStatus,
+  postRefresh,
   renderApp,
   saveFavorites,
   saveRegion,
@@ -59,11 +60,21 @@ describe('App recommendations / お気に入り並び替え', () => {
         ],
       }),
     )
-    fetchRefreshStatus.mockResolvedValue({
+    postRefresh.mockResolvedValue({
+      state: 'running',
+    })
+    fetchRefreshStatus.mockImplementationOnce(async () => ({
       state: 'running',
       started_at: '2024-07-01T00:00:00Z',
       finished_at: null,
       updated_records: 0,
+      last_error: null,
+    }))
+    fetchRefreshStatus.mockResolvedValue({
+      state: 'success',
+      started_at: '2024-07-01T00:00:00Z',
+      finished_at: '2024-07-01T01:00:00Z',
+      updated_records: 3,
       last_error: null,
     })
 
@@ -86,33 +97,41 @@ describe('App recommendations / お気に入り並び替え', () => {
 
     const table = await screen.findByRole('table')
 
-    await waitFor(() => {
+    const expectRowOrder = (expected: string[]) => {
       const rows = within(table).getAllByRole('row').slice(1)
-      const [firstRow, secondRow, thirdRow] = rows
-      if (!firstRow || !secondRow || !thirdRow) {
-        throw new Error('推奨テーブルの行が不足しています')
-      }
-      expect(firstRow).toHaveTextContent('にんじん')
-      expect(secondRow).toHaveTextContent('春菊')
-      expect(thirdRow).toHaveTextContent('キャベツ')
+      expect(rows).toHaveLength(expected.length)
+      expected.forEach((cropName, index) => {
+        const row = rows[index]
+        if (!row) {
+          throw new Error('推奨テーブルの行が不足しています')
+        }
+        expect(row).toHaveTextContent(cropName)
+      })
+    }
+
+    await waitFor(() => {
+      expectRowOrder(['にんじん', '春菊', 'キャベツ'])
     })
 
-    const pollingTimer = setInterval(() => {
-      void fetchRefreshStatus()
-    }, 15_000)
+    await user.click(screen.getByRole('button', { name: '更新' }))
 
-    await vi.advanceTimersByTimeAsync(30_000)
+    await waitFor(() => {
+      expect(postRefresh).toHaveBeenCalledTimes(1)
+    })
 
-    expect(fetchRefreshStatus.mock.calls.length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => {
+      expect(fetchRefreshStatus).toHaveBeenCalledTimes(1)
+    })
 
-    const rowsAfterPolling = within(table).getAllByRole('row').slice(1)
-    const [firstRowAfterPolling, secondRowAfterPolling, thirdRowAfterPolling] = rowsAfterPolling
-    if (!firstRowAfterPolling || !secondRowAfterPolling || !thirdRowAfterPolling) {
-      throw new Error('ポーリング後の推奨テーブルの行が不足しています')
-    }
-    expect(firstRowAfterPolling).toHaveTextContent('にんじん')
-    expect(secondRowAfterPolling).toHaveTextContent('春菊')
-    expect(thirdRowAfterPolling).toHaveTextContent('キャベツ')
+    await vi.advanceTimersToNextTimerAsync()
+
+    await waitFor(() => {
+      expect(fetchRefreshStatus).toHaveBeenCalledTimes(2)
+    })
+
+    await waitFor(() => {
+      expectRowOrder(['にんじん', '春菊', 'キャベツ'])
+    })
 
     const rows = within(table).getAllByRole('row').slice(1)
     const favToggle = within(rows[1]!).getByRole('button', { name: '春菊をお気に入りに追加' })
@@ -120,7 +139,5 @@ describe('App recommendations / お気に入り並び替え', () => {
 
     expect(saveFavorites).toHaveBeenLastCalledWith([2, 1])
     expect(useRecommendationsSpy).toHaveBeenCalled()
-
-    clearInterval(pollingTimer)
   })
 })
