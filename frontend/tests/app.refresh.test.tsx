@@ -11,7 +11,7 @@ import {
 } from './utils/renderApp'
 import App from '../src/App'
 
-describe.skip('App refresh workflow', () => {
+describe('App refresh workflow', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
